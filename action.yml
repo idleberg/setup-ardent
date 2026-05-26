@@ -1,0 +1,51 @@
+name: "Setup Ardent"
+description: "Install the ardent NSIS formatter CLI for use in GitHub Actions workflows"
+author: "Jan T. Sott"
+
+branding:
+  icon: "download-cloud"
+  color: "blue"
+
+inputs:
+  version:
+    description: "Version of ardent to install (leave empty for latest)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Rust (if not already installed)
+      shell: bash
+      run: |
+        if ! command -v cargo &> /dev/null; then
+          echo "::group::Installing Rust (minimal profile)"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "::endgroup::"
+        else
+          echo "✓ Rust already available: $(cargo --version)"
+        fi
+
+    - name: Install ardent CLI
+      shell: bash
+      if: inputs.version == ''
+      run: |
+        echo "::group::Installing ardent (latest)"
+        cargo install ardent
+        echo "::endgroup::"
+
+    - name: Install ardent (specific version)
+      shell: bash
+      if: inputs.version != ''
+      run: |
+        echo "::group::Installing ardent v${{ inputs.version }}"
+        cargo install ardent --version "${{ inputs.version }}"
+        echo "::endgroup::"
+
+    - name: Verify installation
+      shell: bash
+      run: |
+        ardent --version
+        echo "✓ ardent successfully installed"
