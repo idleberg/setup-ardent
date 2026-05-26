@@ -54,4 +54,4 @@ jobs:
 
 ## License
 
-This work is licensed under [The MIT License](LICENSE).MIT
+This work is licensed under [The MIT License](LICENSE).
