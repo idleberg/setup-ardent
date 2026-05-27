@@ -4,7 +4,7 @@ author: "Jan T. Sott"
 
 branding:
   icon: "download-cloud"
-  color: "blue"
+  color: "gray-dark"
 
 inputs:
   version:
