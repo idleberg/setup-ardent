@@ -54,7 +54,6 @@ jobs:
 
 ## Related
 
-- [format-nsis](https://github.com/marketplace/actions/format-nsis) - GitHub Action to format NSIS code
 - [ardent](https://github.com/idleberg/ardent) - Opinionated formatter for NSIS scripts
 
 ## License
