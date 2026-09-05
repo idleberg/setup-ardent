@@ -12,10 +12,51 @@ inputs:
     required: false
     default: ""
 
+outputs:
+  version:
+    description: "Resolved ardent version"
+    value: ${{ steps.vars.outputs.version }}
+
 runs:
   using: "composite"
   steps:
+    - name: Resolve version and paths
+      id: vars
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        # The cache key needs a concrete version, so "latest" gets resolved here
+        # rather than left to cargo. crates.io rejects requests without a User-Agent.
+        if [ -z "$VERSION" ]; then
+          VERSION=$(curl -fsSL -H "User-Agent: idleberg/setup-ardent" \
+            "https://crates.io/api/v1/crates/ardent" \
+            | grep -o '"max_stable_version":"[^"]*"' | head -1 | cut -d'"' -f4)
+          [ -n "$VERSION" ] || { echo "could not resolve latest ardent version"; exit 1; }
+          echo "resolved latest ardent version: $VERSION"
+        fi
+
+        # Forward slashes on Windows: usable from bash and from PATH alike
+        prefix=$HOME/ardent
+        [ "${{ runner.os }}" = Windows ] && prefix=$(cygpath -m "$HOME/ardent")
+
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+        echo "key=ardent-${{ runner.os }}-$VERSION" >> "$GITHUB_OUTPUT"
+
+    # Compiling the CLI is the expensive part, and its output depends on nothing
+    # but the version, so one cache entry per OS and version is enough
+    - name: Restore cached ardent build
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/ardent
+        key: ${{ steps.vars.outputs.key }}
+
     - name: Setup Rust (if not already installed)
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         if ! command -v cargo &> /dev/null; then
@@ -29,23 +70,24 @@ runs:
         fi
 
     - name: Install ardent CLI
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      if: inputs.version == ''
+      env:
+        VERSION: ${{ steps.vars.outputs.version }}
+        PREFIX: ${{ steps.vars.outputs.prefix }}
       run: |
-        echo "::group::Installing ardent (latest)"
-        cargo install ardent
+        set -euo pipefail
+        echo "::group::Installing ardent v$VERSION"
+        export PATH="$HOME/.cargo/bin:$PATH"
+        cargo install ardent --version "$VERSION" --root "$PREFIX"
         echo "::endgroup::"
 
-    - name: Install ardent (specific version)
+    - name: Export PATH and verify
       shell: bash
-      if: inputs.version != ''
+      env:
+        PREFIX: ${{ steps.vars.outputs.prefix }}
       run: |
-        echo "::group::Installing ardent v${{ inputs.version }}"
-        cargo install ardent --version "${{ inputs.version }}"
-        echo "::endgroup::"
-
-    - name: Verify installation
-      shell: bash
-      run: |
-        ardent --version
+        set -euo pipefail
+        echo "$PREFIX/bin" >> "$GITHUB_PATH"
+        "$PREFIX/bin/ardent" --version
         echo "✓ ardent successfully installed"
